@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<meta name="theme-color" content="#1b7f3b"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="MedTracker"/>
+<title>MedTracker – Theo dõi uống thuốc</title>
+<style>
+:root{--green:#1b7f3b;--green-d:#136029;--orange:#b35c00;--red:#c0392b;--bg:#f4f6f8;--card:#fff;--border:#dde3e9;--text:#1c2430;--muted:#6b7785}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-size:16px}
+body{padding-bottom:calc(64px + env(safe-area-inset-bottom));padding-top:env(safe-area-inset-top)}
+header{background:var(--green);color:#fff;padding:12px 16px;position:sticky;top:0;z-index:20}
+header h1{margin:0;font-size:18px;font-weight:600}
+header .sub{font-size:13px;opacity:.9;margin-top:2px}
+.view{display:none;padding:12px}.view.active{display:block}
+.card{background:var(--card);border-radius:12px;padding:12px;margin-bottom:10px;box-shadow:0 1px 2px rgba(0,0,0,.05);border:1px solid var(--border)}
+.card .row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.card .name{font-weight:600;font-size:16px}
+.card .meta{font-size:13px;color:var(--muted);margin-top:3px}
+.card .time{font-size:15px;font-weight:600;color:var(--green)}
+.card.taken{border-left:4px solid var(--green)}
+.card.skipped{border-left:4px solid var(--orange)}
+.card.pending{border-left:4px solid #9aa6b2}
+.btns{display:flex;gap:8px;margin-top:10px}
+button{font:inherit;border:none;border-radius:10px;padding:10px 14px;cursor:pointer;font-weight:600;min-height:44px}
+button.primary{background:var(--green);color:#fff}button.primary:active{background:var(--green-d)}
+button.secondary{background:#e8edf2;color:var(--text)}
+button.danger{background:#fbe9e7;color:var(--red)}
+button.ghost{background:transparent;color:var(--green);font-weight:600}
+button.wide{width:100%}button:disabled{opacity:.45}
+nav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--border);display:flex;padding-bottom:env(safe-area-inset-bottom);z-index:30}
+nav button{flex:1;background:none;border-radius:0;padding:8px 0;color:var(--muted);font-size:12px;display:flex;flex-direction:column;align-items:center;gap:3px;min-height:56px}
+nav button .ico{font-size:20px}nav button.active{color:var(--green)}
+.form-field{margin-bottom:12px}
+.form-field label{display:block;font-size:13px;font-weight:600;color:var(--muted);margin-bottom:5px}
+input[type=text],input[type=date],input[type=time],textarea{width:100%;font:inherit;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:#fff;color:var(--text);min-height:44px}
+input:focus,textarea:focus{outline:none;border-color:var(--green);box-shadow:0 0 0 3px rgba(27,127,59,.15)}
+.time-row{display:flex;gap:6px;margin-bottom:6px;align-items:center}
+.time-row input{flex:1}
+.time-row button{padding:0 14px;background:#fbe9e7;color:var(--red);min-width:44px}
+.hint{font-size:12px;color:var(--muted);font-style:italic;margin-top:6px}
+.empty{text-align:center;color:var(--muted);padding:40px 20px;font-size:14px}
+.badge{display:inline-block;font-size:12px;padding:2px 8px;border-radius:99px;font-weight:600}
+.badge.taken{background:#e3f5e8;color:var(--green)}
+.badge.skipped{background:#fdeedd;color:var(--orange)}
+.badge.pending{background:#eef1f4;color:#5b6673}
+.progress{font-size:13px;color:var(--green);font-weight:600}
+.filter-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.filter-row input{flex:1;min-width:120px}
+.hist-item{font-size:13px;padding:10px 0;border-bottom:1px solid var(--border)}
+.hist-item:last-child{border-bottom:none}
+.hist-item .t1{display:flex;justify-content:space-between;gap:8px;font-weight:600}
+.hist-item .t2{color:var(--muted);margin-top:2px}
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;z-index:100;align-items:flex-end;justify-content:center}
+.modal-bg.show{display:flex}
+.modal{background:#fff;width:100%;max-width:520px;border-radius:16px 16px 0 0;padding:16px;max-height:90vh;overflow-y:auto;padding-bottom:calc(16px + env(safe-area-inset-bottom))}
+.modal h2{margin:0 0 12px;font-size:17px}
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1c2430;color:#fff;padding:10px 18px;border-radius:99px;font-size:14px;z-index:200;opacity:0;transition:opacity .25s;pointer-events:none;max-width:90%}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>💊 MedTracker</h1>
+  <div class="sub" id="hdrSub"></div>
+</header>
+
+<main>
+  <section id="viewToday" class="view active">
+    <div id="todayProgress" class="progress" style="margin-bottom:8px"></div>
+    <div id="todayList"></div>
+  </section>
+
+  <section id="viewMeds" class="view">
+    <button class="primary wide" id="btnNewMed" style="margin-bottom:12px">➕ Thêm thuốc mới</button>
+    <div id="medList"></div>
+  </section>
+
+  <section id="viewHistory" class="view">
+    <div class="filter-row">
+      <input type="date" id="fFrom"/>
+      <input type="date" id="fTo"/>
+      <input type="text" id="fSearch" placeholder="Tìm tên thuốc"/>
+      <button class="secondary" id="btnFilter">🔎 Lọc</button>
+    </div>
+    <div class="btns" style="margin-bottom:12px">
+      <button class="secondary" id="btnExportCsv" style="flex:1">📤 CSV</button>
+      <button class="secondary" id="btnBackup" style="flex:1">💾 Sao lưu</button>
+      <button class="secondary" id="btnRestore" style="flex:1">📥 Khôi phục</button>
+    </div>
+    <input type="file" id="fileRestore" accept=".json,application/json" style="display:none"/>
+    <div id="histList"></div>
+  </section>
+</main>
+
+<nav>
+  <button data-view="today" class="active"><span class="ico">📅</span>Hôm nay</button>
+  <button data-view="meds"><span class="ico">💊</span>Thuốc</button>
+  <button data-view="history"><span class="ico">📜</span>Lịch sử</button>
+</nav>
+
+<div class="modal-bg" id="modalBg">
+  <div class="modal">
+    <h2 id="modalTitle">Thêm thuốc</h2>
+    <input type="hidden" id="medId"/>
+    <div class="form-field"><label>Tên thuốc *</label><input type="text" id="medName" placeholder="VD: Paracetamol"/></div>
+    <div class="form-field"><label>Liều lượng</label><input type="text" id="medDosage" placeholder="VD: 1 viên 500mg"/></div>
+    <div class="form-field">
+      <label>Giờ uống *</label>
+      <div id="timeList"></div>
+      <button class="ghost" id="btnAddTime" type="button">➕ Thêm giờ</button>
+    </div>
+    <div class="form-field"><label>Ngày bắt đầu (trống = hôm nay)</label><input type="date" id="medStart"/></div>
+    <div class="form-field"><label>Ngày kết thúc (trống = không giới hạn)</label><input type="date" id="medEnd"/></div>
+    <div class="form-field"><label>Ghi chú</label><textarea id="medNotes" rows="2"></textarea></div>
+    <div class="btns">
+      <button class="primary" id="btnSaveMed" style="flex:1">💾 Lưu</button>
+      <button class="secondary" id="btnCancelMed" style="flex:1">Hủy</button>
+    </div>
+    <button class="danger wide" id="btnDeleteMed" style="margin-top:8px;display:none">🗑 Xóa thuốc này</button>
+    <div class="hint">Dữ liệu chỉ lưu trên thiết bị này. Nhớ Sao lưu định kỳ.</div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ================= IndexedDB ================= */
+const DB_NAME='medtracker', DB_VER=1;
+let db;
+function openDB(){
+  return new Promise((res,rej)=>{
+    const req=indexedDB.open(DB_NAME,DB_VER);
+    req.onupgradeneeded=e=>{
+      const d=e.target.result;
+      if(!d.objectStoreNames.contains('meds')) d.createObjectStore('meds',{keyPath:'id',autoIncrement:true});
+      if(!d.objectStoreNames.contains('logs')){
+        const l=d.createObjectStore('logs',{keyPath:'id',autoIncrement:true});
+        l.createIndex('date','scheduledDate');
+      }
+    };
+    req.onsuccess=e=>{db=e.target.result;res(db)};
+    req.onerror=e=>rej(e.target.error);
+  });
+}
+const tx=(s,m)=>db.transaction(s,m).objectStore(s);
+const reqP=r=>new Promise((res,rej)=>{r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)});
+const dbGetAll=s=>reqP(tx(s,'readonly').getAll());
+const dbPut=(s,o)=>reqP(tx(s,'readwrite').put(o));
+const dbAdd=(s,o)=>reqP(tx(s,'readwrite').add(o));
+const dbDel=(s,id)=>reqP(tx(s,'readwrite').delete(id));
+const dbClear=s=>reqP(tx(s,'readwrite').clear());
+
+/* ================= Helpers ================= */
+const $=id=>document.getElementById(id);
+const pad=n=>String(n).padStart(2,'0');
+function todayStr(){const d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}
+function nowStr(){const d=new Date();return todayStr()+' '+pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds())}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+let toastTimer;
+function toast(msg){const t=$('toast');t.textContent=msg;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),2200)}
+function beep(){try{const ac=new (window.AudioContext||window.webkitAudioContext)();const o=ac.createOscillator(),g=ac.createGain();o.connect(g);g.connect(ac.destination);o.frequency.value=880;g.gain.value=.2;o.start();o.stop(ac.currentTime+.35)}catch(e){}}
+function download(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000)}
+
+/* ================= Điều hướng tab ================= */
+document.querySelectorAll('nav button').forEach(b=>{
+  b.onclick=()=>{
+    document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    const id='view'+b.dataset.view.charAt(0).toUpperCase()+b.dataset.view.slice(1);
+    $(id).classList.add('active');
+  };
+});
+
+/* ================= Dữ liệu hôm nay ================= */
+async function getTodayItems(){
+  const today=todayStr();
+  const [meds,logs]=await Promise.all([dbGetAll('meds'),dbGetAll('logs')]);
+  const map={};
+  logs.filter(l=>l.scheduledDate===today).forEach(l=>{map[l.medId+'|'+l.scheduledTime]=l});
+  const items=[];
+  for(const m of meds){
+    if(m.startDate && today<m.startDate) continue;
+    if(m.endDate && today>m.endDate) continue;
+    const ts=(m.times||'').split(',').map(s=>s.trim()).filter(Boolean);
+    for(const t of ts){
+      const log=map[m.id+'|'+t];
+      items.push({medId:m.id,name:m.name,dosage:m.dosage||'',time:t,status:log?log.status:'pending',logId:log?log.id:null});
+    }
+  }
+  items.sort((a,b)=>a.time.localeCompare(b.time));
+  return items;
+}
+
+async function renderToday(){
+  const items=await getTodayItems();
+  const taken=items.filter(i=>i.status==='taken').length;
+  $('todayProgress').textContent=items.length?`Đã uống ${taken}/${items.length} liều`:'';
+  const box=$('todayList');box.innerHTML='';
+  if(!items.length){box.innerHTML='<div class="empty">Hôm nay không có liều thuốc nào.<br>Vào tab 💊 Thuốc để thêm.</div>';return}
+  items.forEach(it=>{
+    const el=document.createElement('div');
+    el.className='card '+it.status;
+    const badge=it.status==='taken'?'<span class="badge taken">✅ Đã uống</span>':
+                it.status==='skipped'?'<span class="badge skipped">⏭ Đã bỏ qua</span>':
+                '<span class="badge pending">⏳ Chưa uống</span>';
+    el.innerHTML=`
+      <div class="row">
+        <div><div class="name">${esc(it.name)}</div><div class="meta">${it.dosage?esc(it.dosage):'—'}</div></div>
+        <div style="text-align:right"><div class="time">${it.time}</div>${badge}</div>
+      </div>
+      ${it.status==='pending'
+        ? `<div class="btns">
+             <button class="primary" data-act="take" data-med="${it.medId}" data-time="${it.time}" style="flex:1">✅ Đã uống</button>
+             <button class="secondary" data-act="skip" data-med="${it.medId}" data-time="${it.time}" style="flex:1">⏭ Bỏ qua</button>
+           </div>`
+        : `<div class="btns"><button class="secondary wide" data-act="undo" data-log="${it.logId}">↩ Hoàn tác</button></div>`}`;
+    box.appendChild(el);
+  });
+}
+
+$('todayList').addEventListener('click',async e=>{
+  const btn=e.target.closest('button[data-act]');
+  if(!btn) return;
+  const act=btn.dataset.act;
+  if(act==='take'||act==='skip'){
+    const medId=Number(btn.dataset.med);
+    const med=await reqP(tx('meds','readonly').get(medId));
+    if(!med) return;
+    await dbAdd('logs',{medId,medName:med.name,dosage:med.dosage||'',scheduledDate:todayStr(),scheduledTime:btn.dataset.time,actionTime:nowStr(),status:act==='take'?'taken':'skipped',note:''});
+    toast(act==='take'?'✅ Đã ghi nhận uống thuốc':'⏭ Đã bỏ qua liều này');
+    refreshAll();
+  } else if(act==='undo'){
+    if(!confirm('Hoàn tác ghi nhận của liều này?')) return;
+    await dbDel('logs',Number(btn.dataset.log));
+    refreshAll();toast('Đã hoàn tác');
+  }
+});
+
+/* ================= Quản lý thuốc ================= */
+async function renderMeds(){
+  const meds=await dbGetAll('meds');
+  meds.sort((a,b)=>a.name.localeCompare(b.name,'vi'));
+  const box=$('medList');box.innerHTML='';
+  if(!meds.length){box.innerHTML='<div class="empty">Chưa có thuốc nào.<br>Nhấn "➕ Thêm thuốc mới".</div>';return}
+  meds.forEach(m=>{
+    const el=document.createElement('div');
+    el.className='card';
+    el.innerHTML=`
+      <div class="name">${esc(m.name)}</div>
+      <div class="meta">${m.dosage?esc(m.dosage)+' • ':''}⏰ ${esc(m.times)}</div>
+      <div class="meta">${m.startDate?('Từ '+m.startDate+' '):''}${m.endDate?('→ '+m.endDate):''}${m.notes?(' • '+esc(m.notes)):''}</div>
+      <div class="btns"><button class="secondary" data-act="edit" data-id="${m.id}">✏️ Sửa</button></div>`;
+    box.appendChild(el);
+  });
+}
+
+function addTimeRow(t){
+  const row=document.createElement('div');
+  row.className='time-row';
+  row.innerHTML=`<input type="time" value="${t||'08:00'}"/><button type="button" aria-label="Xóa giờ">✕</button>`;
+  row.querySelector('button').onclick=()=>{if($('timeList').children.length>1) row.remove()};
+  $('timeList').appendChild(row);
+}
+
+function openModal(med){
+  $('modalTitle').textContent=med?'✏️ Sửa thuốc':'➕ Thêm thuốc mới';
+  $('medId').value=med?med.id:'';
+  $('medName').value=med?med.name:'';
+  $('medDosage').value=med?(med.dosage||''):'';
+  $('medStart').value=med?(med.startDate||''):'';
+  $('medEnd').value=med?(med.endDate||''):'';
+  $('medNotes').value=med?(med.notes||''):'';
+  $('timeList').innerHTML='';
+  const ts=med?(med.times||'').split(',').map(s=>s.trim()).filter(Boolean):['08:00'];
+  ts.forEach(addTimeRow);
+  $('btnDeleteMed').style.display=med?'block':'none';
+  $('modalBg').classList.add('show');
+}
+function closeModal(){$('modalBg').classList.remove('show')}
+
+$('btnNewMed').onclick=()=>openModal(null);
+$('btnAddTime').onclick=()=>addTimeRow('12:00');
+$('btnCancelMed').onclick=closeModal;
+$('modalBg').addEventListener('click',e=>{if(e.target===$('modalBg')) closeModal()});
+
+$('medList').addEventListener('click',async e=>{
+  const btn=e.target.closest('button[data-act="edit"]');
+  if(!btn) return;
+  const med=await reqP(tx('meds','readonly').get(Number(btn.dataset.id)));
+  if(med) openModal(med);
+});
+
+$('btnSaveMed').onclick=async()=>{
+  const name=$('medName').value.trim();
+  if(!name){toast('Vui lòng nhập tên thuốc');return}
+  const times=[...$('timeList').querySelectorAll('input[type=time]')].map(i=>i.value).filter(Boolean);
+  if(!times.length){toast('Cần ít nhất 1 giờ uống');return}
+  const obj={
+    name,
+    dosage:$('medDosage').value.trim(),
+    times:[...new Set(times)].sort().join(', '),
+    startDate:$('medStart').value,
+    endDate:$('medEnd').value,
+    notes:$('medNotes').value.trim()
+  };
+  const id=$('medId').value;
+  if(id){obj.id=Number(id);await dbPut('meds',obj);toast('Đã cập nhật thuốc')}
+  else{await dbAdd('meds',obj);toast('Đã thêm thuốc')}
+  closeModal();refreshAll();
+};
+
+$('btnDeleteMed').onclick=async()=>{
+  const id=Number($('medId').value);
+  if(!id) return;
+  if(!confirm('Xóa thuốc này? Lịch sử đã ghi vẫn được giữ lại.')) return;
+  await dbDel('meds',id);
+  closeModal();refreshAll();toast('Đã xóa thuốc');
+};
+
+/* ================= Lịch sử ================= */
+async function renderHistory(){
+  let logs=await dbGetAll('logs');
+  const from=$('fFrom').value,to=$('fTo').value,key=$('fSearch').value.trim().toLowerCase();
+  logs=logs.filter(l=>{
+    if(from && l.scheduledDate<from) return false;
+    if(to && l.scheduledDate>to) return false;
+    if(key && !(l.medName||'').toLowerCase().includes(key)) return false;
+    return true;
+  });
+  logs.sort((a,b)=>(b.scheduledDate+b.scheduledTime).localeCompare(a.scheduledDate+a.scheduledTime));
+  const box=$('histList');box.innerHTML='';
+  if(!logs.length){box.innerHTML='<div class="empty">Chưa có lịch sử phù hợp.</div>';return}
+  logs.forEach(l=>{
+    const el=document.createElement('div');
+    el.className='hist-item';
+    const st=l.status==='taken'?'<span class="badge taken">✅ Đã uống</span>':'<span class="badge skipped">⏭ Bỏ qua</span>';
+    el.innerHTML=`
+      <div class="t1"><span>${esc(l.medName)}</span>${st}</div>
+      <div class="t2">Hẹn: ${l.scheduledDate} ${l.scheduledTime} • Ghi nhận: ${l.actionTime}</div>
+      <div class="btns" style="margin-top:6px"><button class="danger" data-act="delLog" data-id="${l.id}">🗑 Xóa</button></div>`;
+    box.appendChild(el);
+  });
+}
+
+$('btnFilter').onclick=renderHistory;
+$('histList').addEventListener('click',async e=>{
+  const btn=e.target.closest('button[data-act="delLog"]');
+  if(!btn) return;
+  if(!confirm('Xóa bản ghi này?')) return;
+  await dbDel('logs',Number(btn.dataset.id));
+  renderHistory();toast('Đã xóa bản ghi');
+});
+
+$('btnExportCsv').onclick=async()=>{
+  const logs=await dbGetAll('logs');
+  logs.sort((a,b)=>(b.scheduledDate+b.scheduledTime).localeCompare(a.scheduledDate+a.scheduledTime));
+  const rows=[['Thoi gian ghi nhan','Thuoc','Lieu','Ngay hen','Gio hen','Trang thai','Ghi chu']];
+  logs.forEach(l=>rows.push([l.actionTime,l.medName,l.dosage||'',l.scheduledDate,l.scheduledTime,l.status==='taken'?'Da uong':'Bo qua',l.note||'']));
+  const csv='\uFEFF'+rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\r\n');
+  download(new Blob([csv],{type:'text/csv;charset=utf-8'}),`lich_su_uong_thuoc_${todayStr()}.csv`);
+  toast('Đã xuất CSV');
+};
+
+$('btnBackup').onclick=async()=>{
+  const data={app:'MedTracker',version:1,exportedAt:nowStr(),meds:await dbGetAll('meds'),logs:await dbGetAll('logs')};
+  download(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),`medtracker_backup_${todayStr()}.json`);
+  toast('Đã tạo file sao lưu');
+};
+$('btnRestore').onclick=()=>$('fileRestore').click();
+$('fileRestore').onchange=async e=>{
+  const f=e.target.files[0];if(!f) return;
+  try{
+    const data=JSON.parse(await f.text());
+    if(!confirm('Khôi phục sẽ GHI ĐÈ toàn bộ dữ liệu hiện tại. Tiếp tục?')){e.target.value='';return}
+    await dbClear('meds');await dbClear('logs');
+    for(const m of (data.meds||[])) await dbPut('meds',m);
+    for(const l of (data.logs||[])) await dbPut('logs',l);
+    refreshAll();toast('Đã khôi phục dữ liệu');
+  }catch(err){alert('File không hợp lệ: '+err.message)}
+  e.target.value='';
+};
+
+/* ================= Nhắc giờ uống ================= */
+const reminded=new Set();
+async function checkReminders(){
+  const d=new Date();
+  const hhmm=pad(d.getHours())+':'+pad(d.getMinutes());
+  const items=await getTodayItems();
+  for(const it of items){
+    if(it.status!=='pending'||it.time!==hhmm) continue;
+    const key=todayStr()+'|'+it.medId+'|'+it.time;
+    if(reminded.has(key)) continue;
+    reminded.add(key);
+    beep();
+    toast('🔔 '+it.name+' – '+it.time);
+    if('Notification' in window && Notification.permission==='granted'){
+      new Notification('🔔 Nhắc uống thuốc',{body:`${it.name}\n${it.dosage||'Liều đã kê'} • ${it.time}`,tag:key});
+    }
+  }
+}
+
+/* ================= Khởi động ================= */
+async function refreshAll(){
+  await Promise.all([renderToday(),renderMeds(),renderHistory()]);
+}
+
+document.addEventListener('click',()=>{
+  if('Notification' in window && Notification.permission==='default'){
+    Notification.requestPermission().catch(()=>{});
+  }
+},{once:true});
+
+openDB().then(()=>{
+  $('hdrSub').textContent=new Date().toLocaleDateString('vi-VN',{weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'});
+  refreshAll();
+  setInterval(checkReminders,20000);
+  setInterval(renderToday,60000); // cập nhật khi sang ngày mới / sang giờ khác
+}).catch(err=>{
+  document.body.innerHTML='<div style="padding:30px;color:#c0392b">Không mở được IndexedDB: '+err+'</div>';
+});
+</script>
+</body>
+</html>
